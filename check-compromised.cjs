@@ -108,6 +108,22 @@ function checkDeps(deps, badPackages) {
   }
 }
 
+// Function to check dependencies in package.json
+function checkPackageJson(badPackages, filePath) {
+  if (!fs.existsSync(filePath)) return;
+  const pkgJson = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  console.log(`Checking ${filePath}...`);
+  const allDeps = Object.assign({}, pkgJson.dependencies || {}, pkgJson.devDependencies || {}, pkgJson.optionalDependencies || {});
+  for (const [pkg, version] of Object.entries(allDeps)) {
+    // Remove ^, ~, >=, <=, etc. for direct match
+    const cleanVersion = version.replace(/^[^\d]*/, '').split(' ')[0];
+    if (badPackages.has(pkg) && badPackages.get(pkg).has(cleanVersion)) {
+      foundCompromised = true;
+      console.log(`\x1b[31mCompromised in package.json: ${pkg}@${cleanVersion}\x1b[0m`);
+    }
+  }
+}
+
 // Main function
 function main() {
   const badPackages = parseBadPackages();
@@ -115,6 +131,7 @@ function main() {
 
   const packageLockFiles = findFiles(__dirname, 'package-lock.json');
   const pnpmLockFiles = findFiles(__dirname, 'pnpm-lock.yaml');
+  const packageJsonFiles = findFiles(__dirname, 'package.json');
 
   if (packageLockFiles.length > 0) {
     console.log(`Found ${packageLockFiles.length} package-lock.json file(s):`);
@@ -140,6 +157,18 @@ function main() {
 
   for (const file of pnpmLockFiles) {
     checkPnpmLock(badPackages, file);
+  }
+
+  if (packageJsonFiles.length > 0) {
+    console.log(`Found ${packageJsonFiles.length} package.json file(s):`);
+    for (const file of packageJsonFiles) {
+      console.log(`  - ${file}`);
+    }
+    for (const file of packageJsonFiles) {
+      checkPackageJson(badPackages, file);
+    }
+  } else {
+    console.log('No package.json files found.');
   }
 
   console.log('Check complete.');
